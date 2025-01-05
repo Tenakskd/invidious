@@ -1,19 +1,26 @@
 FROM crystallang/crystal:1.12.2-alpine AS builder
 
-RUN apk add --no-cache sqlite-static yaml-static git
+RUN apk add --no-cache sqlite-static yaml-static
 
 ARG release
 
 WORKDIR /invidious
-COPY . .
-
-# Install shards (dependencies)
+COPY ./shard.yml ./shard.yml
+COPY ./shard.lock ./shard.lock
 RUN shards install --production
 
-# Run tests
-RUN crystal spec --warnings all --link-flags "-lxml2 -llzma"
+COPY ./src/ ./src/
+# TODO: .git folder is required for building – this is destructive.
+# See definition of CURRENT_BRANCH, CURRENT_COMMIT and CURRENT_VERSION.
+COPY ./.git/ ./.git/
 
-# Build the application
+# Required for fetching player dependencies
+COPY ./scripts/ ./scripts/
+COPY ./assets/ ./assets/
+COPY ./videojs-dependencies.yml ./videojs-dependencies.yml
+
+RUN crystal spec --warnings all \
+    --link-flags "-lxml2 -llzma"    
 RUN if [[ "${release}" == 1 ]] ; then \
         crystal build ./src/invidious.cr \
         --release \
